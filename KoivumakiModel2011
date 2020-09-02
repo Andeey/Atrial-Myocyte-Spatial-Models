@@ -1,0 +1,600 @@
+function KoivumakiModel2011ode15s
+% Membrane potential
+
+% y(1) = V
+
+% I_Na gates
+
+% y(2) = m
+% y(3) = h1
+% y(4) = h2
+
+% I_CaL gates
+
+% y(5) = d_L
+% y(6) = f_L1
+% y(7) = f_L2
+% y(8) = f_Ca
+
+% I_t gates
+
+% y(9) = r
+% y(10) = s
+
+% I_Kur gates
+
+% y(11) = r_sus
+% y(12) = s_sus
+
+% I_Ks gate
+
+% y(13) = n 
+
+% I_Kr gate
+
+% y(14) = p_a
+
+% I_f gate
+
+% y(15) = y
+
+% y(16) = RyRa1
+% y(17) = RyRa2
+% y(18) = RyRa3
+% y(19) = RyRass
+
+% y(20) = RyRo1
+% y(21) = RyRo2
+% y(22) = RyRo3
+% y(23) = RyRoss
+
+% y(24) = RyRc1
+% y(25) = RyRc2
+% y(26) = RyRc3
+% y(27) = RyRcss
+
+% y(28) = [SERCACa^{2+}]_1
+% y(29) = [SERCACa^{2+}]_2
+% y(30) = [SERCACa^{2+}]_3
+% y(31) = [SERCACa^{2+}]_ss
+
+% y(32) = [Ca^{2+}]_ss
+% y(33) = [Ca^{2+}]_i1
+% y(34) = [Ca^{2+}]_i2
+% y(35) = [Ca^{2+}]_i3
+% y(36) = [Ca^{2+}]_i4
+
+% y(37) = [Ca^{2+}]_SR1
+% y(38) = [Ca^{2+}]_SR2
+% y(39) = [Ca^{2+}]_SR3
+% y(40) = [Ca^{2+}]_SR4
+
+% y(41) = [Na^{+}]_i
+
+% y(42) = [K^{+}]_i
+
+% y(43) = [Na^{+}]_ss
+
+%%=========Koivumäki Human Atrial Cell Model(2011) 
+
+% Physical and environmental constants
+
+F = 96487; % Faraday constant % C/mol 
+R = 8314; % Ideal gas constant% mJ/(mol K) 
+T = 306.15; % Temperature % K 
+
+Na_o = 130; 
+Ca_o = 1.8; 
+K_o = 5.4; 
+C_m = 0.05; % Cell membrane capacitance % nF 
+
+% Geometry
+
+V_ss = 4.99232*10^(-5); % Volume of the subspace % nL 
+r_junct = 6.5; % Radius of the bulk cytosol % µm 
+l_cell = 122.051; % Length of the cell % µm 
+
+% Ca^{2+} diffusion grid
+
+delta_r = 1.625; % Width of bulk cytosol compartments % µm 
+
+A_jnj = 2*pi*r_junct*l_cell*0.5; % Area between junct and nonjunct 
+x_jnj = (0.02/2)+(delta_r/2); % Diffusion distance from center to center of junct to first njunct 
+x_jnj_Nai = (0.02/2) + (2*delta_r); % Diffusion distance from center of junct to center of njunct (between 2nd and 3rd njunct)
+
+% Diffusion compartment volumes
+
+V_1 = pi*l_cell*((delta_r)^2)*(10^(-6))*0.5; 
+V_2 = 3*V_1; 
+V_3 = 5*V_1; 
+V_4 = 7*V_1; 
+
+Vol_i = 16*V_1 + V_ss; % volume of cytosol for Ca^{2+} % nL 
+
+V_SR1 = 0.0225*V_1; 
+V_SR2 = 0.0225*V_2; 
+V_SR3 = 0.0225*V_3; 
+V_SR4 = 0.0225*V_4; 
+
+Vol_i_Nai = 16*V_1; % volume of cytosol for Na^{+} % nL 
+
+% Cytosol Ca^{2+} buffers
+
+BCa = 0.024; % Arbitrary cytosol Ca^{2+} buffer % mM 
+SLlow = 165; % Phospholipid concentration (low-affinity sites) % mM 
+SLhigh = 13; % Phospholipid concentration (high-affinity sites) % mM 
+
+K_dBCa = 0.00238; % Dissociation constant for arbitrary cytosol Ca^{2+} buffer % mM
+K_dSLlow = 1.1; % Dissociation constant for low-affinity phospholipid sites % mM 
+K_dSLhigh = 0.013; % Dissociation constant for high-affinity phospholipid sites % mM 
+
+% SR Ca^{2+} buffers
+
+CSQN = 6.7; 
+K_dCSQN = 0.8; 
+
+% Sarcolemmal Na^{+} buffering 
+
+BNa = 0.49*2.31;
+KdBNa = 10;
+
+% Ion channel conductances and permeabilities and other parameters
+P_Na = 0.0018; % 0.00182? % permeability of I_Na % nL/s 
+E_Caapp = 60; % mV 
+
+gbar_CaL = 15; %% 25.3125? % nS % Koivumäki et al.
+kCan = 2;
+kCa = 0.0006;
+
+gbar_t = 8.25; %7.5? % nS 
+gbar_sus = 2.25; %2.75? % nS 
+gbar_Ks = 1.0; % nS 
+gbar_Kr = 0.5; % nS 
+gbar_K1 = 3.45; %3.825? % conductance of I_K1 % nS 
+gbar_BNa = 0.060599; % nS 
+gbar_BCa = 0.0952; % conductance of background calcium current % nS 
+
+Ibar_NaK = 70.8253; % pA 
+k_NaKK = 1; % mmol/L 
+k_NaKNa = 11; % mmol/L 
+
+I_CaPmax = 2; % maximum pump rae of SL calcium pump % pA 
+k_CaP = 0.0005; %0.0002? % mmol/L 
+
+k_NaCa = 0.0084; %0.008433945? % conductance of I_NCX % pA/(mmol/L)^4 
+gamma = 0.45; % dimensionless 
+d_NaCa = 0.0003; % (mmol/L)^-4 
+
+g_f = 1; %2.5? 
+
+tau_fCa = 2e-3; 
+
+% Ca^{2+} and Na^{+} diffusion
+D_Ca = 780; % diffusion coefficient for Ca^{2+} % µm/s 
+D_CaSR = 44; % diffusion coefficient for Ca^{2+} in SR % µm/s 
+D_CaBm = 25; % diffusion coefficient for Ca^{2+}-buffer complex % µm/s 
+D_Na = 0.12; % diffusion coefficient for Na^{+} % µm/s
+
+% SERCA parameters 
+base_phos = 0.1; % Baseline phosphorylation
+PLB_SERCA_ratio = 1;
+SLN_SERCA_ratio = 1;
+Kmf_PLBKO = 0.15e-3;
+Kmf_PLB = 0.12e-3;
+Kmf_SLN = 0.07e-3;
+Kmr_PLBKO = 2.5;
+Kmr_PLB = 0.88;
+Kmr_SLN = 0.5;
+SERCAKmf = Kmf_PLBKO + Kmf_PLB*PLB_SERCA_ratio*(1-base_phos)+Kmf_SLN*SLN_SERCA_ratio*(1-base_phos);
+SERCAKmr = Kmr_PLBKO - Kmr_PLB*PLB_SERCA_ratio*(1-base_phos)-Kmr_SLN*SLN_SERCA_ratio*(1-base_phos);
+k_4 = 13; % pumping rate from SERCA to SR % s^-1 
+k_3 = (k_4)/((SERCAKmr)^2); % SERCA half-maximal binding in SR % mM
+k_1 = ((10)^6)*k_4; 
+k_2 = k_1*((SERCAKmf)^2); 
+c_pumps = 30e-3; %0.04? % concentration of SERCA % mM 
+
+% SR Ca^{2+} leak
+
+k_SRleak = 6e-3; % SR leak scaling parameter^% s^-1
+
+% RyR parameters 
+
+v = 1; % RyR maximum flux % s^-1 (cytosol)
+v_ss = 625; % RyR maximum flux % s^-1 (subspace)
+
+tau_RyRadapt = 1; % RyR adaptation time constant % s 
+
+tau_RyRactss = 5e-3; % RyR activation time constant % s (subspace) 
+tau_RyRinactss = 15e-3; % RyR inactivation time constant % s (subspace) 
+
+tau_RyRact = 18.75e-3; % RyR activation time constant % s 
+tau_RyRinact = 87.5e-3; % RyR inactivation time constant % s 
+
+% Time discretization
+
+tspan = [0;5000];
+
+%% Initial conditions
+
+% Koivumäki et al., Table S4 
+
+V_m0 = -75.20; % membrane voltage % mV 
+
+m0 = 0.002854; % I_Na gating variable, m gate 
+h_10 = 0.9001; % I_Na gating variable, h1 gate  
+h_20 = 0.9003; % I_Na gating variable, h2 gate 
+
+d_L0 = 0.00001104; % I_CaL gating variable, d_L gate 
+f_L10 = 0.9988; % I_CaL gating variable, f_L1 gate 
+f_L20 = 0.9988; % I_CaL gating variable, f_L2 gate 
+f_Ca0 = 0.9226; % I_CaL gating variable, f_Ca gate 
+
+r0 = 0.0009795; % I_tr gating variable, r gate 
+s0 = 0.9535; % I_tr gating variable, s gate 
+
+r_sus0 = 0.0003196; % I_Kur gating variable, r_sus gate 
+s_sus0 = 0.9726; % I_Kur gating variable, s_sus gate 
+
+n0 = 0.004421; % I_Ks gating variable, n gate 
+
+p_a0 = 0.00004354; % I_Kr gating variable, p_a gate 
+
+y0 = 0.05500; % I_f gating variable, y gate 
+
+RyR_a10 = 0.2033; % RyR in compartment 1 gating variable, adaptation variable 
+RyR_a20 = 0.2106; % RyR in compartment 2 gating variable, adaptation variable 
+RyR_a30 = 0.2229; % RyR in compartment 3 gating variable, adaptation variable 
+RyR_ass0 = 0.2453; % RyR in subspace gating variable, adaptation variable 
+
+RyR_o10 = 0.0001916; % RyR in compartment 1 gating variable, open gate 
+RyR_o20 = 0.0001485; % RyR in compartment 2 gating variable, open gate 
+RyR_o30 = 0.0001010; % RyR in compartment 3 gating variable, open gate 
+RyR_oss0 = 0.00005934; % RyR in subspace gating variable, open gate 
+
+RyR_c10 = 0.9970; % RyR in compartment 1 gating variable, closed gate 
+RyR_c20 = 0.9985; % RyR in compartment 2 gating variable, closed gate 
+RyR_c30 = 0.9993; % RyR in compartment 3 gating variable, closed gate 
+RyR_css0 = 0.9999; % RyR in subspace gating variable, closed gate 
+
+SERCACa_10 = 0.005351; % concentrations of Ca2+ bound to SERCA in cytosolic (compartment 1) % mM 
+SERCACa_20 = 0.005213; % concentrations of Ca2+ bound to SERCA in cytosolic (compartment 2) % mM 
+SERCACa_30 = 0.005020; % concentrations of Ca2+ bound to SERCA in cytosolic (compartment 3) % mM 
+SERCACa_ss0 = 0.004891; % concentrations of Ca2+ bound to SERCA in subspace % mM 
+
+Ca_ss0 = 0.0001737; % Ca^{2+} concentrations in subspace % mM 
+Ca_i10 = 0.0001672; % Ca^{2+} concentrations in cytosolic (compartment 1) % mM 
+Ca_i20 = 0.0001670; % Ca^{2+} concentrations in cytosolic (compartment 2) % mM 
+Ca_i30 = 0.0001680; % Ca^{2+} concentrations in cytosolic (compartment 3) % mM 
+Ca_i40 = 0.0001719; % Ca^{2+} concentrations in cytosolic (compartment 4) % mM 
+
+Ca_SR10 = 0.5755; % Ca^{2+} concentrations in SR (compartment 1) % mM 
+Ca_SR20 = 0.5664; % Ca^{2+} concentrations in SR (compartment 2) % mM 
+Ca_SR30 = 0.5535; % Ca^{2+} concentrations in SR (compartment 3) % mM 
+Ca_SR40 = 0.5428; % Ca^{2+} concentrations in SR (compartment 4) % mM 
+
+Na_i0 = 8.851; % cytosolic Na^{+} concentration % mM 
+
+K_i0 = 135.2; % cytosolic K^{+} concentration % mM 
+
+Na_ss0 = 8.513; % Na^{+} concentration in subspace % mM
+
+y0 = [V_m0 m0 h_10 h_20 d_L0 f_L10 f_L20 f_Ca0 r0 s0 r_sus0 s_sus0 n0 p_a0 y0 RyR_a10 RyR_a20 RyR_a30 RyR_ass0 RyR_o10 RyR_o20 RyR_o30 RyR_oss0 RyR_c10 RyR_c20 RyR_c30 RyR_css0 SERCACa_10 SERCACa_20 SERCACa_30 SERCACa_ss0 Ca_ss0 Ca_i10 Ca_i20 Ca_i30 Ca_i40 Ca_SR10 Ca_SR20 Ca_SR30 Ca_SR40 Na_i0 K_i0 Na_ss0];
+
+% load('yfinal_sr'); % load output of previous simulation saved as yfinal.mat
+% y0 = yfinal;
+
+% ODE15S
+options = odeset('RelTol',1e-5,'MaxStep',1,'Stats','on'); 
+[t,y] = ode15s(@(t,y) f(t,y,F,R,T,Na_o,Ca_o,K_o,C_m,V_ss,r_junct,l_cell,delta_r,A_jnj,x_jnj,x_jnj_Nai,V_1,V_2,V_3,V_4,Vol_i,V_SR1,V_SR2,V_SR3,V_SR4,Vol_i_Nai,BCa,SLlow,SLhigh,K_dBCa,K_dSLlow,K_dSLhigh,CSQN,K_dCSQN,BNa,KdBNa,P_Na,E_Caapp,gbar_CaL,kCan,kCa,gbar_t,gbar_sus,gbar_Ks,gbar_Kr,gbar_K1,gbar_BNa,gbar_BCa,Ibar_NaK,k_NaKK,k_NaKNa,I_CaPmax,k_CaP,k_NaCa,gamma,d_NaCa,g_f,tau_fCa,D_Ca,D_CaSR,D_CaBm,D_Na,base_phos,PLB_SERCA_ratio,SLN_SERCA_ratio,Kmf_PLBKO,Kmf_PLB,Kmf_SLN,Kmr_PLBKO,Kmr_PLB,Kmr_SLN,SERCAKmf,SERCAKmr,k_4,k_3,k_1,k_2,c_pumps,k_SRleak,v,v_ss,tau_RyRadapt,tau_RyRactss,tau_RyRinactss,tau_RyRact,tau_RyRinact), tspan, y0, options);
+
+% yfinal = y(end,:);
+% output = yfinal;
+% save 'yfinal_sr' 'yfinal'
+
+% Plot
+figure(1)
+plot(t,y(:,1),'LineWidth',5)
+% hold on
+ylabel('\fontsize{45} V(mV)')
+xlabel('\fontsize{45} Time(ms)')
+title('\fontsize{45} V_m')
+set(gca,'fontsize',45)
+
+% save KoivumakiEndData.mat y t;  % Save all vectors in y matrix. 
+
+% Function
+function ydot = f(t,y,F,R,T,Na_o,Ca_o,K_o,C_m,V_ss,r_junct,l_cell,delta_r,A_jnj,x_jnj,x_jnj_Nai,V_1,V_2,V_3,V_4,Vol_i,V_SR1,V_SR2,V_SR3,V_SR4,Vol_i_Nai,BCa,SLlow,SLhigh,K_dBCa,K_dSLlow,K_dSLhigh,CSQN,K_dCSQN,BNa,KdBNa,P_Na,E_Caapp,gbar_CaL,kCan,kCa,gbar_t,gbar_sus,gbar_Ks,gbar_Kr,gbar_K1,gbar_BNa,gbar_BCa,Ibar_NaK,k_NaKK,k_NaKNa,I_CaPmax,k_CaP,k_NaCa,gamma,d_NaCa,g_f,tau_fCa,D_Ca,D_CaSR,D_CaBm,D_Na,base_phos,PLB_SERCA_ratio,SLN_SERCA_ratio,Kmf_PLBKO,Kmf_PLB,Kmf_SLN,Kmr_PLBKO,Kmr_PLB,Kmr_SLN,SERCAKmf,SERCAKmr,k_4,k_3,k_1,k_2,c_pumps,k_SRleak,v,v_ss,tau_RyRadapt,tau_RyRactss,tau_RyRinactss,tau_RyRact,tau_RyRinact)
+ydot = zeros(size(y));
+
+%%%%============ Analytical equations
+
+%% Nernst potentials
+
+E_Na = ((R*T)/F)*(log(Na_o/y(43))); 
+E_K =  ((R*T)/F)*(log(K_o/y(42))); 
+E_Ca = ((R*T)/(2*F))*(log(Ca_o/y(32))); 
+%% Sodium current
+
+m_inf = 1/(1+exp((y(1)+27.12)/(-8.21))); 
+h_inf = 1/(1+exp((y(1)+63.6)/(5.3))); 
+
+tau_m = 0.000042*exp(-((y(1)+25.57)/(28.8))^2) + 0.000024; 
+tau_h1 = ((0.03)/(1+exp((y(1)+35.1)/(3.2)))) + 0.0003; 
+tau_h2 = ((0.12)/(1+exp((y(1)+35.1)/(3.2)))) + 0.003; 
+
+I_Na = P_Na*(y(2)^3)*(0.9*y(3)+0.1*y(4))*Na_o*y(1)*((F^2)/(R*T))*(((exp(((y(1)-E_Na)*F)/(R*T)))-1)/((exp((y(1)*F)/(R*T)))-1)); 
+
+%% L-type calcium current
+
+d_Linf =  1/(1+(exp((y(1)+9)/(-5.8)))); 
+f_Linf =  0.04+ 0.96*((1+exp((y(1)+25.5)/(8.4)))^(-1))+((1+exp(-(y(1)-60)/(8)))^(-1));
+f_Cainf = 1-((1+((kCa/y(32))^(kCan)))^(-1));
+
+tau_dL = 0.00065*exp(-((y(1)+35)/(30))^2) + 0.0005; 
+
+tau_fL1 = 0.98698*exp(-((y(1)+30.16047)/(7.09396))^2) + 0.04275*((1+exp((y(1)-51.61555)/(-80.61331)))^(-1)) + 0.03576*((1+exp((y(1)+29.57272)/(13.21758)))^(-1)) - 0.00821; 
+
+tau_fL2 = 1.34*exp(-((y(1)+40)/(14.2))^2) + 0.04; 
+
+I_CaL = gbar_CaL*y(5)*y(8)*y(7)*(y(1)-E_Caapp); 
+
+%% Transient and sustained outward potassium currents: I_t and I_sus
+
+r_inf = 1/(1+exp((y(1)-1)/(-11))); 
+s_inf = 1/(1+exp((y(1)+40.5)/(11.5))); 
+
+tau_r = 0.0035*exp(-(y(1)/30)^2) + 0.0015; 
+tau_s = 0.025635*exp(-((y(1)+52.45)/(15.8827))^2)+0.01414; 
+
+I_t = gbar_t*y(9)*y(10)*(y(1)-E_K); 
+
+r_susinf = 1/(1+exp((y(1)+6)/(-8.6))); 
+s_susinf = (1/(1+exp((y(1)+7.5)/(10)))); 
+
+tau_rsus = (0.009/(1+exp((y(1)+5)/(12))))+0.0005; 
+tau_ssus = (0.59/(1+exp((y(1)+60)/(10))))+3.05; 
+
+I_sus = gbar_sus*y(11)*y(12)*(y(1)-E_K); 
+
+%% Delayed Rectifier potassium currents: I_Ks and I_Kr
+
+n_inf = 1/(1+exp((y(1)-19.9)/(-12.7))); 
+
+tau_n = 0.4*exp(-((y(1)-20)/(20))^2)+0.7; 
+
+I_Ks = gbar_Ks*y(13)*(y(1)-E_K); 
+
+p_ainf = 1/(1+exp((y(1)+15)/(-6)));   
+
+p_i = 1/(1+exp((y(1)+55)/(24))); 
+
+tau_pa = 0.21718*exp(-((y(1)+20.1376)/(22.1996))^2)+0.03118; 
+
+I_Kr = gbar_Kr*y(14)*p_i*(y(1)-E_K); 
+
+%% Inward rectifier potassium current: I_K1
+
+I_K1 = gbar_K1*(K_o^(0.4457))*((y(1)-E_K)/(1+exp((1.5*(y(1)-E_K+3.6)*F)/(R*T)))); 
+ 
+%% Background inward currents: I_BNa and I_BCa
+
+I_BNa = gbar_BNa*(y(1)-E_Na); 
+I_BCa = gbar_BCa*(y(1)-E_Ca); 
+
+%% Pump and exchanger currents: I_Nak, I_CaP, I_NaCa
+
+I_NaK = Ibar_NaK*((K_o)/(K_o+k_NaKK))*(((y(43))^1.5)/(((y(43))^1.5)+((k_NaKNa)^1.5)))*((y(1)+150)/(y(1)+200)); 
+I_CaP = I_CaPmax*((y(32))/(y(32)+k_CaP)); 
+I_NaCa = k_NaCa*(((((y(43))^3)*Ca_o*(exp((gamma*y(1)*F)/(R*T))))-((Na_o^3)*y(32)*(exp(((gamma-1)*y(1)*F)/(R*T)))))/(1+d_NaCa*((((Na_o)^3)*(y(32)))+(((y(43))^3)*(Ca_o))))); 
+
+% Hyperpolarization-activated inward potassium current (Zorn-Pauly LAW fit)
+
+y_inf = 1/(1+exp((y(1)+97.82874)/(12.48025))); 
+tau_y = 1/(0.00332*exp(-(y(1))/16.54103)+ 23.71839*exp(y(1)/16.54103)); 
+
+I_fNa = g_f*y(15)*(0.2677*(y(1)-E_Na));
+I_fK = g_f*y(15)*((1-0.2677)*(y(1)-E_K));
+
+I_f = I_fK+I_fNa;
+%% SERCA 
+
+% Current from SERCA into the SR
+
+J_SERCASR1 = (-k_3*((y(37))^2)*(c_pumps-y(28))+k_4*y(28))*V_1*2; 
+J_SERCASR2 = (-k_3*((y(38))^2)*(c_pumps-y(29))+k_4*y(29))*V_2*2; 
+J_SERCASR3 = (-k_3*((y(39))^2)*(c_pumps-y(30))+k_4*y(30))*V_3*2; 
+J_SERCASRss = (-k_3*((y(40))^2)*(c_pumps-y(31))+k_4*y(31))*V_ss*2; 
+
+% Current from cytosol into the SR
+
+J_1SERCA = (k_1*((y(33))^2)*(c_pumps-y(28))-k_2*y(28))*V_1*2; 
+J_2SERCA = (k_1*((y(34))^2)*(c_pumps-y(29))-k_2*y(29))*V_2*2; 
+J_3SERCA = (k_1*((y(35))^2)*(c_pumps-y(30))-k_2*y(30))*V_3*2; 
+J_ssSERCA = (k_1*((y(32))^2)*(c_pumps-y(31))-k_2*y(31))*V_ss*2; 
+
+%% RyR
+
+RyR_SRCa1 = 1-((1)/(1+(exp((y(37)-0.3)/(0.1))))); 
+RyR_SRCa2 = 1-((1)/(1+(exp((y(38)-0.3)/(0.1))))); 
+RyR_SRCa3 = 1-((1)/(1+(exp((y(39)-0.3)/(0.1))))); 
+RyR_SRCass = 1-((1)/(1+(exp((y(40)-0.3)/(0.1))))); 
+
+RyR_ainf1 = 0.505-((0.427)/(1+exp((1000*y(33)-0.29)/(0.082)))); 
+RyR_ainf2 = 0.505-((0.427)/(1+exp((1000*y(34)-0.29)/(0.082)))); 
+RyR_ainf3 = 0.505-((0.427)/(1+exp((1000*y(35)-0.29)/(0.082)))); 
+RyR_ainfss = 0.505-((0.427)/(1+exp((1000*y(32)-0.29)/(0.082)))); 
+
+RyR_oinf1 =  1-((1)/(1+(exp((1000*y(33)-(y(16)+0.22))/(0.03))))); 
+RyR_oinf2 =  1-((1)/(1+(exp((1000*y(34)-(y(17)+0.22))/(0.03))))); 
+RyR_oinf3 =  1-((1)/(1+(exp((1000*y(35)-(y(18)+0.22))/(0.03)))));  
+RyR_oinfss =  1-((1)/(1+(exp((1000*y(32)-(y(19)+0.22))/(0.03))))); 
+
+RyR_cinf1 =  ((1)/(1+(exp((1000*y(33)-(y(16)+0.02))/(0.01)))));  
+RyR_cinf2 =  ((1)/(1+(exp((1000*y(34)-(y(17)+0.02))/(0.01))))); 
+RyR_cinf3 =  ((1)/(1+(exp((1000*y(35)-(y(18)+0.02))/(0.01))))); 
+RyR_cinfss =  ((1)/(1+(exp((1000*y(32)-(y(19)+0.02))/(0.01)))));  
+
+J_rel1 = v*y(20)*y(24)*RyR_SRCa1*(y(37)-y(33))*V_1; 
+J_rel2 = v*y(21)*y(25)*RyR_SRCa2*(y(38)-y(34))*V_2; 
+J_rel3 = v*y(22)*y(26)*RyR_SRCa3*(y(39)-y(35))*V_3; 
+J_relss = v_ss*y(23)*y(27)*RyR_SRCass*(y(40)-y(32))*V_ss; 
+
+%% SR calcium leak
+
+J_SRleak1 = k_SRleak*(y(37)-y(33))*V_1; 
+J_SRleak2 = k_SRleak*(y(38)-y(34))*V_2; 
+J_SRleak3 = k_SRleak*(y(39)-y(35))*V_3; 
+J_SRleakss = k_SRleak*(y(40)-y(32))*V_ss; 
+
+%% Fluxes
+
+% Calcium diffusion flux between junctional and non-junctional (bulk_4
+% compartment) cytosol
+
+J_jnj =  D_Ca*(A_jnj/x_jnj)*(y(32)-y(36))*(1e-6); 
+
+% Intracellular calcium fluxes 
+
+J_Ca1 = -J_1SERCA + J_SRleak1 + J_rel1; 
+J_Ca2 = -J_2SERCA + J_SRleak2 + J_rel2; 
+J_Ca3 = -J_3SERCA + J_SRleak3 + J_rel3; 
+J_Ca4 = J_jnj; 
+J_Cass = -J_jnj+J_SRleakss-J_ssSERCA+J_relss; 
+
+% SR calcium fluxes
+
+J_SRCa1 = J_SERCASR1 - J_SRleak1 - J_rel1; 
+J_SRCa2 = J_SERCASR2 - J_SRleak2 - J_rel2; 
+J_SRCa3 = J_SERCASR3 - J_SRleak3 - J_rel3; 
+J_SRCa4 = J_SERCASRss - J_SRleakss - J_relss; 
+
+% Na^{+} flux
+
+J_Na = D_Na*(A_jnj/x_jnj_Nai)*(y(43)-y(41))*(1e-6);
+
+%% Calcium buffers
+
+B_ss = (1+((SLlow*K_dSLlow)/((y(32) + K_dSLlow)^2))+((SLhigh*K_dSLhigh)/((y(32) + K_dSLhigh)^2))+((BCa*K_dBCa)/((y(32) + K_dBCa)^2)))^(-1); 
+
+B_i1 = (1+((BCa*K_dBCa)/((y(33) + K_dBCa)^2)))^(-1); 
+B_i2 = (1+((BCa*K_dBCa)/((y(34) + K_dBCa)^2)))^(-1); 
+B_i3 = (1+((BCa*K_dBCa)/((y(35) + K_dBCa)^2)))^(-1); 
+B_i4 = (1+((BCa*K_dBCa)/((y(36) + K_dBCa)^2)))^(-1); 
+
+gamma_i1 = (BCa*K_dBCa)  /(y(33)+K_dBCa); 
+gamma_i2 = (BCa*K_dBCa)  /(y(34)+K_dBCa); 
+gamma_i3 = (BCa*K_dBCa)  /(y(35)+K_dBCa); 
+gamma_i4 = (BCa*K_dBCa)  /(y(36)+K_dBCa); 
+
+B_SR1 = (1+((CSQN*K_dCSQN)/((y(37) + K_dCSQN)^2)))^(-1); 
+B_SR2 = (1+((CSQN*K_dCSQN)/((y(38) + K_dCSQN)^2)))^(-1); 
+B_SR3 = (1+((CSQN*K_dCSQN)/((y(39) + K_dCSQN)^2)))^(-1); 
+B_SR4 = (1+((CSQN*K_dCSQN)/((y(40) + K_dCSQN)^2)))^(-1); 
+
+B_Nass = (1+((BNa*KdBNa)/((y(43)+KdBNa)^2)))^(-1);
+%% ODEs
+
+% I_Na
+
+ydot(2) = (1e-3)*((m_inf-y(2))/(tau_m)); 
+ydot(3) = (1e-3)*((h_inf-y(3))/(tau_h1)); 
+ydot(4) = (1e-3)*((h_inf-y(4))/(tau_h2)); 
+
+% I_CaL
+
+ydot(5) = (1e-3)*((d_Linf-y(5))/(tau_dL)); 
+ydot(6) = (1e-3)*((f_Linf-y(6))/(tau_fL1)); 
+ydot(7) = (1e-3)*((f_Linf-y(7))/(tau_fL2)); 
+ydot(8) = (1e-3)*((f_Cainf-y(8))/(tau_fCa)); 
+
+% I_t and I_sus
+
+ydot(9) = (1e-3)*((r_inf-y(9))/(tau_r));
+ydot(10) = (1e-3)*((s_inf-y(10))/(tau_s)); 
+
+ydot(11) = (1e-3)*((r_susinf-y(11))/(tau_rsus)); 
+ydot(12) = (1e-3)*((s_susinf-y(12))/(tau_ssus)); 
+
+% I_Ks and I_Kr
+
+ydot(13) = (1e-3)*((n_inf-y(13))/(tau_n));
+ydot(14) = (1e-3)*((p_ainf-y(14))/(tau_pa)); 
+
+% I_f
+
+ydot(15) = (1e-3)*((y_inf-y(15))/(tau_y)); 
+
+% RyR
+
+ydot(16) = (1e-3)*((RyR_ainf1-y(16))/(tau_RyRadapt)); 
+ydot(17) = (1e-3)*((RyR_ainf2-y(17))/(tau_RyRadapt)); 
+ydot(18) = (1e-3)*((RyR_ainf3-y(18))/(tau_RyRadapt)); 
+ydot(19) = (1e-3)*((RyR_ainfss-y(19))/(tau_RyRadapt)); 
+
+ydot(20) = (1e-3)*((RyR_oinf1-y(20))/(tau_RyRact)); 
+ydot(21) = (1e-3)*((RyR_oinf2-y(21))/(tau_RyRact)); 
+ydot(22) = (1e-3)*((RyR_oinf3-y(22))/(tau_RyRact)); 
+ydot(23) = (1e-3)*((RyR_oinfss-y(23))/(tau_RyRactss)); 
+
+ydot(24) = (1e-3)*((RyR_cinf1-y(24))/(tau_RyRinact)); 
+ydot(25) = (1e-3)*((RyR_cinf2-y(25))/(tau_RyRinact)); 
+ydot(26) = (1e-3)*((RyR_cinf3-y(26))/(tau_RyRinact)); 
+ydot(27) = (1e-3)*((RyR_cinfss-y(27))/(tau_RyRinactss)); 
+
+% Calcium-bound SERCA concentration
+
+ydot(28) = ((1e-3)*0.5)*((J_1SERCA-J_SERCASR1)/(V_1)); 
+ydot(29) = ((1e-3)*0.5)*((J_2SERCA-J_SERCASR2)/(V_2)); 
+ydot(30) = ((1e-3)*0.5)*((J_3SERCA-J_SERCASR3)/(V_3)); 
+ydot(31) = ((1e-3)*0.5)*((J_ssSERCA-J_SERCASRss)/(V_ss)); 
+
+% Subspace calcium concentration
+
+ydot(32) = (B_ss*(1e-3))*((J_Cass/V_ss)+((-I_CaL-I_BCa-I_CaP+2*I_NaCa)/(2*V_ss*F))); 
+
+% Intracellular calcium concentration
+
+ydot(33) = (1e-3)*(B_i1*(D_Ca+gamma_i1*D_CaBm)*(((y(34)-y(33))/((delta_r)^2))+ ((y(34)-y(33))/(2*((delta_r)^2))))-((2*B_i1*gamma_i1*D_CaBm)/(K_dBCa+y(33)))*(((y(34)-y(33))/(2*delta_r))^2)+(J_Ca1/V_1)*B_i1);    
+ydot(34) = (1e-3)*(B_i2*(D_Ca+gamma_i2*D_CaBm)*(((y(35)-2*y(34)+y(33))/((delta_r)^2))+ ((y(35)-y(33))/(4*((delta_r)^2))))-((2*B_i2*gamma_i2*D_CaBm)/(K_dBCa+y(34)))*(((y(35)-y(33))/(2*delta_r))^2)+(J_Ca2/V_2)*B_i2);     
+ydot(35) = (1e-3)*(B_i3*(D_Ca+gamma_i3*D_CaBm)*(((y(36)-2*y(35)+y(34))/((delta_r)^2))+ ((y(36)-y(34))/(6*((delta_r)^2))))-((2*B_i3*gamma_i3*D_CaBm)/(K_dBCa+y(35)))*(((y(36)-y(34))/(2*delta_r))^2)+(J_Ca3/V_3)*B_i3);       
+ydot(36) = (1e-3)*(B_i4*(D_Ca+gamma_i4*D_CaBm)*(((-(y(36))+y(35))/((delta_r)^2))+ ((y(36)-y(35))/(8*((delta_r)^2))))-((2*B_i4*gamma_i4*D_CaBm)/(K_dBCa+y(36)))*(((y(36)-y(35))/(2*delta_r))^2)+(J_Ca4/V_4)*B_i4);    
+
+% Sarcoplasmic reticulum calcium concentration
+
+ydot(37) = (1e-3)*(B_SR1*D_CaSR*(((y(38)-y(37))/((delta_r)^2)) + ((y(38)-y(37))/(2*((delta_r)^2)))) + ((J_SRCa1/V_SR1)*B_SR1));       
+ydot(38) = (1e-3)*(B_SR2*D_CaSR*(((y(39)-2*y(38)+y(37))/((delta_r)^2)) + ((y(39)-y(37))/(4*((delta_r)^2)))) + ((J_SRCa2/V_SR2)*B_SR2));     
+ydot(39) = (1e-3)*(B_SR3*D_CaSR*(((y(40)-2*y(39)+y(38))/((delta_r)^2)) + ((y(40)-y(38))/(6*((delta_r)^2)))) + ((J_SRCa3/V_SR3)*B_SR3));     
+ydot(40) = (1e-3)*(B_SR4*D_CaSR*(((-(y(40))+y(39))/((delta_r)^2)) + ((y(40)-y(39))/(8*((delta_r)^2)))) + ((J_SRCa4/V_SR4)*B_SR4)); 
+
+% Intracellular sodium concentration
+
+ydot(41) = (1e-3)*(J_Na/Vol_i_Nai);
+
+% Subspace potassium concentration
+
+ydot(43) = (-B_Nass*(1e-3))*((J_Na/V_ss)+((I_Na+I_BNa+3*I_NaK+3*I_NaCa+I_fNa)/(F*V_ss)));
+
+% Stimulus
+
+% I_st = 0;
+
+if (t>=0) && (t <= 1)
+I_st = -1410*2;
+elseif (t>=1001) && (t <= 1002)
+I_st = -1410*2;
+elseif (t>=2002) && (t <= 2003)
+I_st = -1410*2;
+elseif (t>=3003) && (t <= 3004)
+I_st = -1410*2;
+else
+I_st = 0;
+end
+
+
+% Intracellular potassium concentration
+ 
+ydot(42) = ((-(1e-3))*(I_t+I_sus+I_K1+I_Ks+I_Kr-2*I_NaK+I_fK+I_st))/(Vol_i*F); 
+
+% Membrane potential
+
+ydot(1) =  (1e-3)*((I_Na+I_CaL+I_t+I_sus+I_K1+I_Kr+I_Ks+I_BNa+I_BCa+I_NaK+I_CaP+I_NaCa+I_f+I_st)/(-C_m));
